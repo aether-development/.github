@@ -8,5 +8,3 @@
   <p><i>Its the reason why Minecraft players pour water inside a frame of glowstone.</i></p>
             <hr/>
 </div>
-
-## About
