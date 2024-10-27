@@ -1,4 +1,4 @@
-name: lint
+name: prettier
 
 on:
   workflow_call:
@@ -20,11 +20,11 @@ on:
         type: string
 
 jobs:
-  lint:
-    name: Linting
-    uses: zendrex/zendrex/.github/workflows/reusable-bun-job.yml@main
+  prettier:
+    name: Prettier Checking
+    uses: aether-development/.github/workflows/reusable-bun-job.yml@main
     with:
-      script-name: lint --fix=false
+      script-name: format:check
       operating-system: ${{ inputs.operating-system }}
       bun-version: ${{ inputs.bun-version }}
       with-submodules: ${{ inputs.with-submodules }}

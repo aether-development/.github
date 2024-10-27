@@ -1,4 +1,4 @@
-name: build
+name: lint
 
 on:
   workflow_call:
@@ -20,11 +20,11 @@ on:
         type: string
 
 jobs:
-  build:
-    name: Building
-    uses: zendrex/zendrex/.github/workflows/reusable-bun-job.yml@main
+  lint:
+    name: Linting
+    uses: aether-development/.github/workflows/reusable-bun-job.yml@main
     with:
-      script-name: build
+      script-name: lint --fix=false
       operating-system: ${{ inputs.operating-system }}
       bun-version: ${{ inputs.bun-version }}
       with-submodules: ${{ inputs.with-submodules }}

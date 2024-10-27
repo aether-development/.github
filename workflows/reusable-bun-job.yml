@@ -42,7 +42,7 @@ jobs:
           name: npmrc
           path: .
       - name: Install Dependencies
-        uses: zendrex/zendrex/.github/actions/install-bun-dependencies@main
+        uses: aether-development/.github/actions/install-bun-dependencies@main
         with:
           bun-version: ${{ inputs.bun-version }}
       - name: Run Script

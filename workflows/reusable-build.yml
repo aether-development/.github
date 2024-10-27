@@ -1,4 +1,4 @@
-name: prettier
+name: build
 
 on:
   workflow_call:
@@ -20,11 +20,11 @@ on:
         type: string
 
 jobs:
-  prettier:
-    name: Prettier Checking
-    uses: zendrex/zendrex/.github/workflows/reusable-bun-job.yml@main
+  build:
+    name: Building
+    uses: aether-development/.github/workflows/reusable-bun-job.yml@main
     with:
-      script-name: format:check
+      script-name: build
       operating-system: ${{ inputs.operating-system }}
       bun-version: ${{ inputs.bun-version }}
       with-submodules: ${{ inputs.with-submodules }}

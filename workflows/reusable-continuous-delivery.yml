@@ -1,10 +1,19 @@
-name: publish
+name: publish github
 
 on:
   workflow_call:
     inputs:
-      project-name:
-        description: The name of the project
+      pr-number:
+        description: The number of the PR that is being deployed
+        required: false
+        type: string
+      ref:
+        description: The branch that is being deployed. Should be a branch on the given repository
+        required: false
+        default: main
+        type: string
+      repository:
+        description: The {owner}/{repository} that is being deployed.
         required: true
         type: string
       bun-version:
@@ -27,11 +36,6 @@ on:
         required: false
         default: .
         type: string
-      skip-automatic-bump:
-        description: Whether to skip the automatic bumping of the package version
-        required: false
-        default: false
-        type: boolean
       build:
         description: Whether to run `bun build` before publishing
         required: false
@@ -50,20 +54,23 @@ on:
         required: false
 
 concurrency:
-  group: ${{ github.workflow }}|${{ github.head_ref || github.ref }}|${{ inputs.working-directory }}|${{ inputs.registry }}|${{ inputs.operating-system }}|${{ inputs.bun-version }}
+  group: ${{ github.workflow }}|${{ github.head_ref || github.ref }}|${{ inputs.working-directory }}|${{ inputs.registry }}|${{ inputs.operating-system }}|${{ inputs.repository }}|${{ inputs.bun-version }}
   cancel-in-progress: true
 
 jobs:
   publish:
-    name: Publish ${{ inputs.project-name }}
+    name: Continuous Delivery
     runs-on: ${{ inputs.operating-system }}
-    if: github.repository_owner == 'zendrex'
+    if: ${{ github.repository_owner == 'zendrex' }}
+    env:
+      TAG: ${{ github.event_name == 'push' && 'next' || format('pr-{0}', inputs['pr-number']) }}
     steps:
       - name: Checkout Project
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: main
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
           submodules: ${{ inputs.with-submodules }}
 
@@ -86,18 +93,8 @@ jobs:
             fi
           fi
 
-      - name: Configure Git
-        run: |
-          git remote set-url origin "https://${GITHUB_TOKEN}:x-oauth-basic@github.com/${GITHUB_REPOSITORY}.git"
-          git config --local user.email "${GITHUB_EMAIL}"
-          git config --local user.name "${GITHUB_USER}"
-        env:
-          GITHUB_USER: github-actions[bot]
-          GITHUB_EMAIL: zendrex+github-actions[bot]@users.noreply.github.com
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Install Dependencies
-        uses: zendrex/zendrex/.github/actions/install-bun-dependencies@main
+        uses: aether-development/.github/actions/install-bun-dependencies@main
         with:
           bun-version: ${{ inputs.bun-version }}
 
@@ -105,19 +102,15 @@ jobs:
         if: ${{ inputs.build }}
         run: bun build
 
-      - name: Bump Versions and make release
+      - name: Bump Version
         working-directory: ${{ inputs.working-directory }}
-        run: |
-          if [ "${{ inputs.skip-automatic-bump }}" = "true" ]; then
-            bun x bump --skip-automatic-bump
-          else
-            bun x bump
-          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          bun run bump --preid "${TAG}.$(git rev-parse --short HEAD)" --skip-changelog
 
       - name: Publish to NPM Registry
-        if: ${{ inputs.registry == 'npm' }}
+        if: ${{ inputs.registry == 'npm' || inputs.registry == 'both' }}
         working-directory: ${{ inputs.working-directory }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -125,10 +118,10 @@ jobs:
         run: |
           echo "//registry.npmjs.org/:_authToken=${AUTH_TOKEN}" > ~/.npmrc
 
-          bun x npm publish --registry https://registry.npmjs.org/
+          bun x npm publish --tag ${TAG} --registry https://registry.npmjs.org/
 
       - name: Publish to GitHub Registry
-        if: ${{ inputs.registry == 'github' }}
+        if: ${{ inputs.registry == 'github' || inputs.registry == 'both' }}
         working-directory: ${{ inputs.working-directory }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -136,4 +129,4 @@ jobs:
         run: |
           echo "//npm.pkg.github.com/:_authToken=${AUTH_TOKEN}" > ~/.npmrc
 
-          bun x npm publish --registry https://npm.pkg.github.com/${{ github.repository_owner }}
+          bun x npm publish --tag ${TAG} --registry https://npm.pkg.github.com/${{ github.repository_owner }}
