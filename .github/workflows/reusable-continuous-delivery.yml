@@ -1,0 +1,132 @@
+name: publish github
+
+on:
+  workflow_call:
+    inputs:
+      pr-number:
+        description: The number of the PR that is being deployed
+        required: false
+        type: string
+      ref:
+        description: The branch that is being deployed. Should be a branch on the given repository
+        required: false
+        default: main
+        type: string
+      repository:
+        description: The {owner}/{repository} that is being deployed.
+        required: true
+        type: string
+      bun-version:
+        description: The version of Bun to use (default `latest`)
+        required: false
+        default: latest
+        type: string
+      operating-system:
+        description: The operating system to use (default `ubuntu-latest`)
+        required: false
+        default: ubuntu-latest
+        type: string
+      with-submodules:
+        description: Whether to include submodules when checking out the repository (default `false`)
+        required: false
+        default: 'false'
+        type: string
+      working-directory:
+        description: The working directory to run the commands in
+        required: false
+        default: .
+        type: string
+      build:
+        description: Whether to run `bun build` before publishing
+        required: false
+        default: false
+        type: boolean
+      registry:
+        description: The registry to publish to, either `npm`, `github` or `both`
+        required: true
+        type: string
+    secrets:
+      GH_AUTH_TOKEN:
+        description: The token to authenticate with the Github registry
+        required: false
+      NPM_AUTH_TOKEN:
+        description: The token to authenticate with the NPM registry
+        required: false
+
+concurrency:
+  group: ${{ github.workflow }}|${{ github.head_ref || github.ref }}|${{ inputs.working-directory }}|${{ inputs.registry }}|${{ inputs.operating-system }}|${{ inputs.repository }}|${{ inputs.bun-version }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    name: Continuous Delivery
+    runs-on: ${{ inputs.operating-system }}
+    if: ${{ github.repository_owner == 'zendrex' }}
+    env:
+      TAG: ${{ github.event_name == 'push' && 'next' || format('pr-{0}', inputs['pr-number']) }}
+    steps:
+      - name: Checkout Project
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          submodules: ${{ inputs.with-submodules }}
+
+      - name: Check Required Secrets
+        env:
+          REGISTRY: ${{ inputs.registry }}
+          NPM_AUTH_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
+          GH_AUTH_TOKEN: ${{ secrets.GH_AUTH_TOKEN }}
+        run: |
+          if [[ "$REGISTRY" == "npm" || "$REGISTRY" == "both" ]]; then
+            if [[ -z "$NPM_AUTH_TOKEN" ]]; then
+              echo "Error: NPM_AUTH_TOKEN is required when publishing to npm registry."
+              exit 1
+            fi
+          fi
+          if [[ "$REGISTRY" == "github" || "$REGISTRY" == "both" ]]; then
+            if [[ -z "$GH_AUTH_TOKEN" ]]; then
+              echo "Error: GH_AUTH_TOKEN is required when publishing to GitHub registry."
+              exit 1
+            fi
+          fi
+
+      - name: Install Dependencies
+        uses: zendrex/zendrex/.github/actions/install-bun-dependencies@main
+        with:
+          bun-version: ${{ inputs.bun-version }}
+
+      - name: Build
+        if: ${{ inputs.build }}
+        run: bun build
+
+      - name: Bump Version
+        working-directory: ${{ inputs.working-directory }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          bun run bump --preid "${TAG}.$(git rev-parse --short HEAD)" --skip-changelog
+
+      - name: Publish to NPM Registry
+        if: ${{ inputs.registry == 'npm' || inputs.registry == 'both' }}
+        working-directory: ${{ inputs.working-directory }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AUTH_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
+        run: |
+          echo "//registry.npmjs.org/:_authToken=${AUTH_TOKEN}" > ~/.npmrc
+
+          bun x npm publish --tag ${TAG} --registry https://registry.npmjs.org/
+
+      - name: Publish to GitHub Registry
+        if: ${{ inputs.registry == 'github' || inputs.registry == 'both' }}
+        working-directory: ${{ inputs.working-directory }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AUTH_TOKEN: ${{ secrets.GH_AUTH_TOKEN }}
+        run: |
+          echo "//npm.pkg.github.com/:_authToken=${AUTH_TOKEN}" > ~/.npmrc
+
+          bun x npm publish --tag ${TAG} --registry https://npm.pkg.github.com/${{ github.repository_owner }}
