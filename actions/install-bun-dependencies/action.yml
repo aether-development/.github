@@ -24,6 +24,7 @@ runs:
       with:
         name: npmrc
         path: .
+      continue-on-error: true
 
     - name: Install dependencies
       shell: bash
