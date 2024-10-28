@@ -61,7 +61,7 @@ jobs:
   publish:
     name: Continuous Delivery
     runs-on: ${{ inputs.operating-system }}
-    if: ${{ github.repository_owner == 'zendrex' }}
+    if: ${{ github.repository_owner == 'aether-development' }}
     env:
       TAG: ${{ github.event_name == 'push' && 'next' || format('pr-{0}', inputs['pr-number']) }}
     steps:
