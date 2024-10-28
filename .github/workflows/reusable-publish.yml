@@ -103,7 +103,7 @@ jobs:
 
       - name: Build
         if: ${{ inputs.build }}
-        run: bun build
+        run: bun run build
 
       - name: Bump Versions and make release
         working-directory: ${{ inputs.working-directory }}
