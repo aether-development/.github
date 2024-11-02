@@ -37,13 +37,6 @@ jobs:
         with:
           submodules: ${{ inputs.with-submodules }}
 
-      - name: Fetch NPMRC Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: npmrc
-          path: .
-        continue-on-error: true
-
       - name: Install Dependencies
         uses: aether-development/.github/actions/install-bun-dependencies@main
         with:

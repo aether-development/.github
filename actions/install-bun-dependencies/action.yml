@@ -19,13 +19,6 @@ runs:
       with:
         bun-version: ${{ inputs.node-version }}
 
-    - name: Get NPMRC Artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: npmrc
-        path: .
-      continue-on-error: true
-
     - name: Install dependencies
       shell: bash
       run: bun install --immutable
