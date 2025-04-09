@@ -134,7 +134,7 @@ jobs:
         if: ${{ inputs.registry == 'npm' || inputs.registry == 'both' }}
         working-directory: ${{ inputs.working-directory }}
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
+          NPM_CONFIG_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
         run: |
           bun publish --tag ${TAG} --provenance --access public
 
@@ -150,6 +150,6 @@ jobs:
         if: ${{ inputs.registry == 'github' || inputs.registry == 'both' }}
         working-directory: ${{ inputs.working-directory }}
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           bun publish --tag ${TAG}
