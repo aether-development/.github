@@ -45,6 +45,14 @@ on:
         description: The registry to publish to, either `npm`, `github` or `both`
         required: true
         type: string
+      npm-scope:
+        description: The scope to use when publishing to the NPM registry (e.g., @aetherjs). If provided, package.json name will be temporarily updated.
+        required: false
+        type: string
+      github-scope:
+        description: The scope to use when publishing to the GitHub registry (e.g., @aether-development). If provided, package.json name will be temporarily updated.
+        required: false
+        type: string
     secrets:
       GH_AUTH_TOKEN:
         description: The token to authenticate with the Github registry
@@ -123,6 +131,18 @@ jobs:
         run: |
           bun run bump --preid "${TAG}.$(git rev-parse --short HEAD)" --skip-changelog
 
+      - name: Backup package.json
+        if: ${{ (inputs.registry == 'npm' || inputs.registry == 'both') && inputs.npm-scope || (inputs.registry == 'github' || inputs.registry == 'both') && inputs.github-scope }}
+        working-directory: ${{ inputs.working-directory }}
+        run: cp package.json package.json.bak
+
+      - name: Modify package.json for NPM Scope
+        if: ${{ (inputs.registry == 'npm' || inputs.registry == 'both') && inputs.npm-scope }}
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          PACKAGE_NAME=$(jq -r '.name' package.json | sed 's/^@[^/]*\///')
+          jq --arg scope "${{ inputs.npm-scope }}" --arg name "$PACKAGE_NAME" '.name = $scope + "/" + $name' package.json > temp.json && mv temp.json package.json
+
       - name: Publish to NPM Registry
         if: ${{ inputs.registry == 'npm' || inputs.registry == 'both' }}
         working-directory: ${{ inputs.working-directory }}
@@ -131,6 +151,18 @@ jobs:
         run: |
           echo "//registry.npmjs.org/:_authToken=${NPM_CONFIG_TOKEN}" >> ~/.npmrc
           bun publish --tag ${TAG} --provenance --access public
+
+      - name: Restore package.json after NPM publish
+        if: ${{ (inputs.registry == 'npm' || inputs.registry == 'both') && inputs.npm-scope }}
+        working-directory: ${{ inputs.working-directory }}
+        run: mv package.json.bak package.json
+
+      - name: Modify package.json for GitHub Scope
+        if: ${{ (inputs.registry == 'github' || inputs.registry == 'both') && inputs.github-scope }}
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          PACKAGE_NAME=$(jq -r '.name' package.json | sed 's/^@[^/]*\///')
+          jq --arg scope "${{ inputs.github-scope }}" --arg name "$PACKAGE_NAME" '.name = $scope + "/" + $name' package.json > temp.json && mv temp.json package.json
 
       - name: Publish to GitHub Registry
         if: ${{ inputs.registry == 'github' || inputs.registry == 'both' }}
@@ -141,3 +173,12 @@ jobs:
           REPO_OWNER=$(echo "${{ inputs.repository }}" | cut -d '/' -f 1)
           echo "//npm.pkg.github.com/:_authToken=${NPM_CONFIG_TOKEN}" >> ~/.npmrc
           bun publish --tag ${TAG} --registry https://npm.pkg.github.com/${REPO_OWNER}
+
+      - name: Restore package.json after GitHub publish
+        if: ${{ (inputs.registry == 'github' || inputs.registry == 'both') && inputs.github-scope }}
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          # Only move back if the file exists (it might have been moved by the NPM restore step already if both scopes were provided)
+          if [ -f package.json.bak ]; then
+            mv package.json.bak package.json
+          fi
