@@ -45,9 +45,6 @@ on:
       GH_AUTH_TOKEN:
         description: The token to authenticate with the Github registry
         required: false
-      REPO_ACCESS_TOKEN:
-        description: Token with write access to the repository for version bumping/tagging. Defaults to GITHUB_TOKEN if not provided.
-        required: false
       NPM_AUTH_TOKEN:
         description: The token to authenticate with the NPM registry
         required: false
@@ -121,7 +118,7 @@ jobs:
             bun run bump
           fi
         env:
-          GITHUB_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish to NPM Registry
         if: ${{ inputs.registry == 'npm' || inputs.registry == 'both' }}
