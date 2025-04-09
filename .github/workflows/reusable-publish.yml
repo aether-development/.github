@@ -129,7 +129,7 @@ jobs:
         run: |
           echo "//registry.npmjs.org/:_authToken=${AUTH_TOKEN}" >> ~/.npmrc
 
-          bun x npm publish --registry https://registry.npmjs.org/
+          bun x npm publish --registry https://registry.npmjs.org/ --access public
 
       - name: Publish to GitHub Registry
         if: ${{ inputs.registry == 'github' || inputs.registry == 'both' }}
