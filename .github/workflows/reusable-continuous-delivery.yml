@@ -129,14 +129,15 @@ jobs:
         env:
           NPM_CONFIG_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
         run: |
-          echo "//npm.pkg.github.com/:_authToken=${NPM_CONFIG_TOKEN}" >> ~/.npmrc
+          echo "//registry.npmjs.org/:_authToken=${NPM_CONFIG_TOKEN}" >> ~/.npmrc
           bun publish --tag ${TAG} --provenance --access public
 
       - name: Publish to GitHub Registry
         if: ${{ inputs.registry == 'github' || inputs.registry == 'both' }}
         working-directory: ${{ inputs.working-directory }}
         env:
-          NPM_CONFIG_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_TOKEN: ${{ secrets.GH_AUTH_TOKEN }}
         run: |
+          REPO_OWNER=$(echo "${{ inputs.repository }}" | cut -d '/' -f 1)
           echo "//npm.pkg.github.com/:_authToken=${NPM_CONFIG_TOKEN}" >> ~/.npmrc
-          bun publish --tag ${TAG} --registry https://npm.pkg.github.com/${{ github.repository_owner }}
+          bun publish --tag ${TAG} --registry https://npm.pkg.github.com/${REPO_OWNER}
