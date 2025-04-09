@@ -1,0 +1,89 @@
+name: Continuous Delivery
+
+# Define permissions required for publishing to GitHub Packages
+permissions:
+  contents: read # To checkout the repository
+  packages: write # To push packages to GitHub Packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: The package to deploy (optional, deploys all if omitted)
+        required: false
+        type: choice
+        options:
+          - framework
+          - eslint-plugin
+      prNumber:
+        description: The number of the PR that is being deployed
+        required: false
+        type: string
+      ref:
+        description: The branch that is being deployed. Should be a branch on the given repository
+        required: false
+        default: main
+        type: string
+      repository:
+        description: The {owner}/{repository} that is being deployed.
+        required: false
+        default: aether-development/framework # Defaulting to framework repo, adjust if needed
+        type: string
+  push:
+    branches:
+      - main
+    paths:
+      # Trigger if either package changes, or the workflow itself changes
+      - 'packages/framework/**'
+      - 'packages/eslint-plugin/**'
+      - '.github/workflows/continuous-delivery.yml'
+      - '.github/workflows/reusable-continuous-delivery.yml'
+
+jobs:
+  determine-packages:
+    name: Determine Packages to Publish
+    runs-on: ubuntu-latest
+    outputs:
+      packages_json: ${{ steps.determine.outputs.packages_json }}
+    steps:
+      - name: Determine Packages using Composite Action
+        id: determine
+        uses: aether-development/.github/.github/actions/determine-packages@main
+        with:
+          event_name: ${{ github.event_name }}
+          dispatch_package_input: ${{ github.event.inputs.package }}
+          # Define the package configuration as a multi-line YAML string
+          packages_config: |
+            packages:
+              framework:
+                paths:
+                  - 'packages/framework/**'
+              eslint-plugin:
+                paths:
+                  - 'packages/eslint-plugin/**'
+            common_paths:
+              - '.github/workflows/continuous-delivery.yml'
+              - '.github/workflows/reusable-continuous-delivery.yml'
+
+  Publish:
+    needs: determine-packages
+    if: needs.determine-packages.outputs.packages_json != '[]'
+    name: Publish Next ${{ matrix.package }} to GitHub Registry
+    strategy:
+      fail-fast: false
+      matrix:
+        # Dynamically generate matrix from the JSON output of determine-packages job
+        package: ${{ fromJSON(needs.determine-packages.outputs.packages_json) }}
+
+    uses: aether-development/.github/.github/workflows/reusable-continuous-delivery.yml@main
+    with:
+      build: true
+      pr-number: ${{ github.event.inputs.prNumber }} # Pass dispatch input
+      # Determine ref/repo based on trigger event
+      ref: ${{ github.event_name == 'push' && github.ref_name || github.event.inputs.ref }}
+      repository: ${{ github.event_name == 'push' && github.repository || github.event.inputs.repository }}
+      # Use matrix value here - this is safe now that we're using the composite action
+      working-directory: packages/${{ matrix.package }}
+      registry: 'github'
+    secrets:
+      GH_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Pass secrets

@@ -1,0 +1,40 @@
+name: Publish To Github
+run-name: Github Publish @aether-development/${{ inputs.package }}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.package }}
+  cancel-in-progress: true
+
+# Define permissions required for publishing to GitHub Packages
+permissions:
+  contents: read # To checkout the repository
+  packages: write # To push packages to GitHub Packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: The package to release
+        required: true
+        type: choice
+        options:
+          - framework
+          - eslint-plugin
+      skip-automatic-bump:
+        description: Whether to skip the automatic bumping of the packageversion
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  PublishPackage:
+    name: Publish @aether-development/${{ inputs.package}}
+    uses: aether-development/.github/.github/workflows/reusable-publish.yml@main
+    with:
+      build: true
+      project-name: '@aether-development/${{ inputs.package}}'
+      working-directory: packages/${{ inputs.package }}
+      skip-automatic-bump: ${{ inputs.skip-automatic-bump }}
+      registry: 'github'
+    secrets:
+      GH_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -113,9 +113,9 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
         run: |
           if [ "${{ inputs.skip-automatic-bump }}" = "true" ]; then
-            bun x bump --skip-automatic-bump
+            bun run bump --skip-automatic-bump
           else
-            bun x bump
+            bun run bump
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

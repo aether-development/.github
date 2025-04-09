@@ -1,0 +1,40 @@
+name: CI
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'packages/**'
+      - 'package.json'
+      - '.github/workflows/continuous-integration.yml'
+      - '.github/workflows/reusable-lint.yml'
+      - '.github/workflows/reusable-prettier.yml'
+      - '.github/workflows/reusable-build.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'packages/**'
+      - 'package.json'
+      - '.github/workflows/continuous-integration.yml'
+      - '.github/workflows/reusable-lint.yml'
+      - '.github/workflows/reusable-prettier.yml'
+      - '.github/workflows/reusable-build.yml'
+
+jobs:
+  linting:
+    name: Linting
+    uses: aether-development/.github/.github/workflows/reusable-lint.yml@main
+
+  prettier:
+    name: Prettier Check
+    uses: aether-development/.github/.github/workflows/reusable-prettier.yml@main
+
+  build:
+    name: Building
+    uses: aether-development/.github/.github/workflows/reusable-build.yml@main
