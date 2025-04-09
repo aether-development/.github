@@ -129,6 +129,7 @@ jobs:
         env:
           NPM_CONFIG_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
         run: |
+          echo "//npm.pkg.github.com/:_authToken=${NPM_CONFIG_TOKEN}" >> ~/.npmrc
           bun publish --tag ${TAG} --provenance --access public
 
       - name: Publish to GitHub Registry
@@ -137,4 +138,5 @@ jobs:
         env:
           NPM_CONFIG_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          echo "//npm.pkg.github.com/:_authToken=${NPM_CONFIG_TOKEN}" >> ~/.npmrc
           bun publish --tag ${TAG} --registry https://npm.pkg.github.com/${{ github.repository_owner }}
