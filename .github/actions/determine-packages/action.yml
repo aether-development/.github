@@ -33,18 +33,26 @@ outputs:
 runs:
   using: "composite"
   steps:
-    # 0. Setup - Install dependencies (yq)
-    - name: Install yq
+    # 0. Setup - Install dependencies (yq & jq)
+    - name: Install yq and jq
       shell: bash
       run: |
-        echo "::group::Install yq"
-        if ! command -v yq &> /dev/null
-        then
+        echo "::group::Install yq & jq"
+        # Install yq
+        if ! command -v yq &> /dev/null; then
             echo "yq not found. Installing..."
             sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq && sudo chmod +x /usr/bin/yq
             echo "yq installed successfully to $(command -v yq)"
         else
             echo "yq already installed at $(command -v yq)"
+        fi
+        # Install jq
+        if ! command -v jq &> /dev/null; then
+            echo "jq not found. Installing..."
+            sudo apt-get update && sudo apt-get install -y jq
+            echo "jq installed successfully to $(command -v jq)"
+        else
+            echo "jq already installed at $(command -v jq)"
         fi
         echo "::endgroup::"
 
@@ -132,35 +140,49 @@ runs:
       with:
         filters: ${{ steps.generate-filter.outputs.filters }}
 
+    # 4. Handle push trigger - Set Matrix (Modified)
     - name: Set Matrix based on Changes (Push Only)
       id: set-matrix-push
       if: inputs.event_name == 'push'
       shell: bash
+      # Added env context to pass outputs object as JSON
+      env:
+        CHANGES_OUTPUTS: ${{ toJSON(steps.changes.outputs) }}
+        PACKAGES_CONFIG: ${{ inputs.packages_config }}
       run: |
-        packages_config_yaml='${{ inputs.packages_config }}'
+        packages_config_yaml="$PACKAGES_CONFIG" # Use env var
+        changes_outputs_json="$CHANGES_OUTPUTS" # Use env var
         declare -a packages
         # Extract package names
         package_names=$(echo "$packages_config_yaml" | yq '[.packages | keys] | .[]')
         
+        echo "Checking for changes in packages: $package_names"
+        echo "Paths filter outputs: $changes_outputs_json"
+
         for pkg in $package_names; do
-          # Check the output of the paths-filter step for this package
-          # Simplified check using direct context access
-          if [[ "${{ steps.changes.outputs.${pkg} }}" == "true" ]]; then
+          # Use jq to query the JSON outputs using the shell variable 'pkg' as the key
+          filter_output=$(echo "$changes_outputs_json" | jq -r --arg key "$pkg" '.[$key]')
+          
+          echo "Checking package: $pkg -> Filter output: $filter_output"
+          # Compare the extracted value
+          if [[ "$filter_output" == "true" ]]; then
+            echo " -> Adding $pkg to matrix"
             packages+=("\"$pkg\"") # Add package name with quotes
           fi
         done
         
         # Join array elements with comma, wrap in brackets for JSON
-        # Works even if array is empty (produces '[]')
-        packages_json=$(printf ',%s' "${packages[@]}")
+        packages_json=$(printf ",%s" "${packages[@]}")
         packages_json="[${packages_json:1}]"
+        # Ensure output is '[]' if no packages matched
+        if [[ "${#packages[@]}" -eq 0 ]]; then
+           packages_json="[]"
+        fi
         
+        echo "Final packages_json: $packages_json"
         echo "packages_json=${packages_json}" >> $GITHUB_OUTPUT
-        # Install yq for YAML parsing (needs to be done only once if runner reused)
-        # echo "::add-matcher::${{ runner.tool_cache }}/yq.json" 
-        # sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq && sudo chmod +x /usr/bin/yq 
 
-    # 3. Finalize Matrix Output
+    # 5. Finalize Matrix Output
     - name: Finalize Matrix Output
       id: set-matrix # This step sets the final action output
       shell: bash
