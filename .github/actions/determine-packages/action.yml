@@ -99,7 +99,8 @@ runs:
       shell: bash
       run: |
         packages_config_yaml='${{ inputs.packages_config }}'
-        common_paths_yaml=$(echo "$packages_config_yaml" | yq '.common_paths | map_values(.') # Convert common_paths list to YAML list string
+        # Corrected yq command: Select the array directly
+        common_paths_yaml=$(echo "$packages_config_yaml" | yq '.common_paths') 
         # If common_paths is null or empty, set to empty string for concatenation
         if [[ "$common_paths_yaml" == "null" || "$common_paths_yaml" == "[]" ]]; then
            common_paths_yaml=""
@@ -110,28 +111,26 @@ runs:
         package_names=$(echo "$packages_config_yaml" | yq '[.packages | keys] | .[]')
         
         for pkg in $package_names; do
-          # Get specific paths for the package
-          pkg_paths_yaml=$(echo "$packages_config_yaml" | yq ".packages.${pkg}.paths | map_values(.')")
+          # Corrected yq command: Select the array directly
+          pkg_paths_yaml=$(echo "$packages_config_yaml" | yq ".packages.${pkg}.paths")
           # Start building the filter entry for this package
-          filter_yaml+="${pkg}:\\\\n"
+          filter_yaml+="${pkg}:\\n"
           # Indent and add package-specific paths
           indented_pkg_paths=$(echo "$pkg_paths_yaml" | sed 's/^/  /')
-          filter_yaml+="${indented_pkg_paths}\\\\n"
+          filter_yaml+="${indented_pkg_paths}\\n"
           # Indent and add common paths (if any)
           if [[ -n "$common_paths_yaml" ]]; then
              indented_common_paths=$(echo "$common_paths_yaml" | sed 's/^/  /')
-             filter_yaml+="${indented_common_paths}\\\\n"
+             filter_yaml+="${indented_common_paths}\\n"
           fi
         done
         
         # Escape newlines for multiline output
         filter_yaml=$(echo -e "$filter_yaml")
+        echo "Generated filters YAML:\n$filter_yaml"
         echo "filters<<EOF" >> $GITHUB_OUTPUT
         echo "$filter_yaml" >> $GITHUB_OUTPUT
         echo "EOF" >> $GITHUB_OUTPUT
-        # Install yq for YAML parsing (needs to be done only once if runner reused)
-        # echo "::add-matcher::${{ runner.tool_cache }}/yq.json" 
-        # sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq && sudo chmod +x /usr/bin/yq 
 
     - name: Filter Paths (Push Only)
       id: changes
