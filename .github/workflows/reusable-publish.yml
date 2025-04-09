@@ -7,10 +7,10 @@ on:
         description: The name of the project
         required: true
         type: string
-      bun-version:
-        description: The version of Bun to use (default `latest`)
+      node-version:
+        description: The version of Node.js to use (default `lts/*`)
         required: false
-        default: latest
+        default: 'lts/*'
         type: string
       operating-system:
         description: The operating system to use (default `ubuntu-latest`)
@@ -91,32 +91,31 @@ jobs:
           git remote set-url origin "https://${GITHUB_TOKEN}:x-oauth-basic@github.com/${GITHUB_REPOSITORY}.git"
           git config --local user.email "${GITHUB_EMAIL}"
           git config --local user.name "${GITHUB_USER}"
-          git config set advice.addIgnoredFile false
         env:
           GITHUB_USER: github-actions[bot]
           GITHUB_EMAIL: aether-development+github-actions[bot]@users.noreply.github.com
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
+      - name: Use Node.js v20
+        uses: actions/setup-node@v4
         with:
-          bun-version: ${{ inputs.bun-version }}
+          node-version: ${{ inputs.node-version }}
 
       - name: Install Dependencies
         working-directory: ${{ inputs.working-directory }}
-        run: bun install --frozen-lockfile
+        run: yarn install --frozen-lockfile
 
       - name: Build
         if: ${{ inputs.build }}
-        run: bun run build
+        run: yarn build
 
       - name: Bump Versions and make release
         working-directory: ${{ inputs.working-directory }}
         run: |
           if [ "${{ inputs.skip-automatic-bump }}" = "true" ]; then
-            bun run bump --skip-automatic-bump
+            yarn bump --skip-automatic-bump
           else
-            bun run bump
+            yarn bump
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -130,7 +129,7 @@ jobs:
         run: |
           echo "//registry.npmjs.org/:_authToken=${AUTH_TOKEN}" >> ~/.npmrc
 
-          bun x npm publish --registry https://registry.npmjs.org/
+          yarn publish --registry https://registry.npmjs.org/
 
       - name: Publish to GitHub Registry
         if: ${{ inputs.registry == 'github' || inputs.registry == 'both' }}
@@ -141,4 +140,4 @@ jobs:
         run: |
           echo "//npm.pkg.github.com/:_authToken=${AUTH_TOKEN}" >> ~/.npmrc
 
-          bun x npm publish --registry https://npm.pkg.github.com/${{ github.repository_owner }}
+          yarn publish --registry https://npm.pkg.github.com/${{ github.repository_owner }}
