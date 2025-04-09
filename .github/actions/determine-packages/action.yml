@@ -99,37 +99,39 @@ runs:
       shell: bash
       run: |
         packages_config_yaml='${{ inputs.packages_config }}'
-        # Corrected yq command: Select the array directly
-        common_paths_yaml=$(echo "$packages_config_yaml" | yq '.common_paths') 
-        # If common_paths is null or empty, set to empty string for concatenation
-        if [[ "$common_paths_yaml" == "null" || "$common_paths_yaml" == "[]" ]]; then
-           common_paths_yaml=""
-        fi
-        
+        # Get common paths as a JSON array string (more robust for checking emptiness)
+        common_paths_json=$(echo "$packages_config_yaml" | yq '.common_paths | tojson')
+
         filter_yaml=""
-        # Extract package names
-        package_names=$(echo "$packages_config_yaml" | yq '[.packages | keys] | .[]')
-        
-        for pkg in $package_names; do
-          # Corrected yq command: Select the array directly
-          pkg_paths_yaml=$(echo "$packages_config_yaml" | yq ".packages.${pkg}.paths")
+        # Extract package names into a bash array
+        mapfile -t package_names < <(echo "$packages_config_yaml" | yq '.packages | keys | .[]')
+
+        for pkg in "${package_names[@]}"; do
+          # Get specific paths for the package as a JSON array string
+          pkg_paths_json=$(echo "$packages_config_yaml" | yq ".packages.\"$pkg\".paths | tojson") # Quote pkg name
+
           # Start building the filter entry for this package
-          filter_yaml+="${pkg}:\\n"
-          # Indent and add package-specific paths
-          indented_pkg_paths=$(echo "$pkg_paths_yaml" | sed 's/^/  /')
-          filter_yaml+="${indented_pkg_paths}\\n"
-          # Indent and add common paths (if any)
-          if [[ -n "$common_paths_yaml" ]]; then
-             indented_common_paths=$(echo "$common_paths_yaml" | sed 's/^/  /')
+          filter_yaml+="${pkg}:\\n" # Double backslash for literal \n in the final filter string
+
+          # Add package-specific paths, converting JSON array to YAML list items
+          # Check if pkg_paths_json is not null or empty array '[]'
+          if [[ "$pkg_paths_json" != "null" && "$pkg_paths_json" != "[]" ]]; then
+            indented_pkg_paths=$(echo "$pkg_paths_json" | jq -r '.[]' | sed 's/^/  - /')
+            filter_yaml+="${indented_pkg_paths}\\n"
+          fi
+
+          # Add common paths (if any), converting JSON array to YAML list items
+          # Check if common_paths_json is not null or empty array '[]'
+          if [[ "$common_paths_json" != "null" && "$common_paths_json" != "[]" ]]; then
+             indented_common_paths=$(echo "$common_paths_json" | jq -r '.[]' | sed 's/^/  - /')
              filter_yaml+="${indented_common_paths}\\n"
           fi
         done
-        
-        # Escape newlines for multiline output
-        filter_yaml=$(echo -e "$filter_yaml")
-        echo "Generated filters YAML:\n$filter_yaml"
+
+        echo "Generated filters YAML:"
+        echo -e "$filter_yaml" # Use echo -e for display/debug
         echo "filters<<EOF" >> $GITHUB_OUTPUT
-        echo "$filter_yaml" >> $GITHUB_OUTPUT
+        echo -e "$filter_yaml" >> $GITHUB_OUTPUT # Use echo -e to output correct multiline format
         echo "EOF" >> $GITHUB_OUTPUT
 
     - name: Filter Paths (Push Only)
