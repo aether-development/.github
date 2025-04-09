@@ -123,13 +123,6 @@ jobs:
         run: |
           bun run bump --preid "${TAG}.$(git rev-parse --short HEAD)" --skip-changelog
 
-      - name: Setup Node for NPM
-        if: ${{ inputs.registry == 'npm' }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20.x'
-          registry-url: 'https://registry.npmjs.org'
-
       - name: Publish to NPM Registry
         if: ${{ inputs.registry == 'npm' || inputs.registry == 'both' }}
         working-directory: ${{ inputs.working-directory }}
@@ -138,18 +131,10 @@ jobs:
         run: |
           bun publish --tag ${TAG} --provenance --access public
 
-      - name: Setup Node for GitHub
-        if: ${{ inputs.registry == 'github' }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20.x'
-          registry-url: 'https://npm.pkg.github.com'
-          scope: '@${{ github.repository_owner }}'
-
       - name: Publish to GitHub Registry
         if: ${{ inputs.registry == 'github' || inputs.registry == 'both' }}
         working-directory: ${{ inputs.working-directory }}
         env:
           NPM_CONFIG_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          bun publish --tag ${TAG}
+          bun publish --tag ${TAG} --registry https://npm.pkg.github.com/${{ github.repository_owner }}
