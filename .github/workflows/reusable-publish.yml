@@ -7,10 +7,10 @@ on:
         description: The name of the project
         required: true
         type: string
-      node-version:
-        description: The version of Node.js to use (default `lts/*`)
+      bun-version:
+        description: The version of Bun to use (default `latest`)
         required: false
-        default: 'lts/*'
+        default: latest
         type: string
       operating-system:
         description: The operating system to use (default `ubuntu-latest`)
@@ -96,26 +96,26 @@ jobs:
           GITHUB_EMAIL: aether-development+github-actions[bot]@users.noreply.github.com
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Use Node.js v20
-        uses: actions/setup-node@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
         with:
-          node-version: ${{ inputs.node-version }}
+          bun-version: ${{ inputs.bun-version }}
 
       - name: Install Dependencies
         working-directory: ${{ inputs.working-directory }}
-        run: yarn install --frozen-lockfile
+        run: bun install --frozen-lockfile
 
       - name: Build
         if: ${{ inputs.build }}
-        run: yarn build
+        run: bun run build
 
       - name: Bump Versions and make release
         working-directory: ${{ inputs.working-directory }}
         run: |
           if [ "${{ inputs.skip-automatic-bump }}" = "true" ]; then
-            yarn bump --skip-automatic-bump
+            bun run bump --skip-automatic-bump
           else
-            yarn bump
+            bun run bump
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -129,7 +129,7 @@ jobs:
         run: |
           echo "//registry.npmjs.org/:_authToken=${AUTH_TOKEN}" >> ~/.npmrc
 
-          yarn publish --registry https://registry.npmjs.org/
+          bun x npm publish --registry https://registry.npmjs.org/
 
       - name: Publish to GitHub Registry
         if: ${{ inputs.registry == 'github' || inputs.registry == 'both' }}
@@ -140,4 +140,4 @@ jobs:
         run: |
           echo "//npm.pkg.github.com/:_authToken=${AUTH_TOKEN}" >> ~/.npmrc
 
-          yarn publish --registry https://npm.pkg.github.com/${{ github.repository_owner }}
+          bun x npm publish --registry https://npm.pkg.github.com/${{ github.repository_owner }}
