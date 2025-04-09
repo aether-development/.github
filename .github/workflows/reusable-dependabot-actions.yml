@@ -8,10 +8,6 @@ on:
         required: false
         default: ubuntu-latest
         type: string
-      repo:
-        description: The repo-owner/repo string for the repository filter
-        required: true
-        type: string
 
 permissions:
   contents: write
@@ -21,7 +17,7 @@ jobs:
   dependabot:
     name: Actions
     runs-on: ${{ inputs.operating-system}}
-    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == inputs.repo
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
     steps:
       - name: Dependabot Metadata
         id: metadata

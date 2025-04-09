@@ -47,6 +47,12 @@ jobs:
           repository: ${{ inputs.repository-overwrite-labels }}
           submodules: ${{ inputs.with-submodules }}
 
+      - name: Install yq
+        if: inputs.merge-labels == true
+        run: |
+          sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq
+          sudo chmod +x /usr/bin/yq
+
       - name: Merge labels
         if: inputs.merge-labels == true
         run: |

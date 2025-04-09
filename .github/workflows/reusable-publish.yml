@@ -96,10 +96,14 @@ jobs:
           GITHUB_EMAIL: aether-development+github-actions[bot]@users.noreply.github.com
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install Dependencies
-        uses: aether-development/.github/actions/install-bun-dependencies@main
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
         with:
           bun-version: ${{ inputs.bun-version }}
+
+      - name: Install Dependencies
+        working-directory: ${{ inputs.working-directory }}
+        run: bun install --frozen-lockfile
 
       - name: Build
         if: ${{ inputs.build }}
@@ -117,7 +121,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish to NPM Registry
-        if: ${{ inputs.registry == 'npm' }}
+        if: ${{ inputs.registry == 'npm' || inputs.registry == 'both' }}
         working-directory: ${{ inputs.working-directory }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -128,7 +132,7 @@ jobs:
           bun x npm publish --registry https://registry.npmjs.org/
 
       - name: Publish to GitHub Registry
-        if: ${{ inputs.registry == 'github' }}
+        if: ${{ inputs.registry == 'github' || inputs.registry == 'both' }}
         working-directory: ${{ inputs.working-directory }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

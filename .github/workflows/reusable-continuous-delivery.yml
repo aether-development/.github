@@ -93,10 +93,14 @@ jobs:
             fi
           fi
 
-      - name: Install Dependencies
-        uses: aether-development/.github/actions/install-bun-dependencies@main
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
         with:
           bun-version: ${{ inputs.bun-version }}
+
+      - name: Install Dependencies
+        working-directory: ${{ inputs.working-directory }}
+        run: bun install --frozen-lockfile
 
       - name: Build
         if: ${{ inputs.build }}
