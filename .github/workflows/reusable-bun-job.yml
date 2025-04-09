@@ -43,7 +43,7 @@ jobs:
           bun-version: ${{ inputs.bun-version }}
 
       - name: Install Dependencies
-        run: bun install --frozen-lockfile
+        run: bun install
 
       - name: Run Script
         run: bun run ${{ inputs.script-name }}
