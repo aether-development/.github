@@ -1,0 +1,178 @@
+name: 'Determine Packages to Publish'
+description: 'Determines which packages need publishing based on event type and changes.'
+
+inputs:
+  event_name:
+    description: 'The name of the event that triggered the workflow (github.event_name)'
+    required: true
+  dispatch_package_input:
+    description: 'The package input from workflow_dispatch (github.event.inputs.package)'
+    required: false
+    default: ''
+  # Configuration for packages and their paths
+  # Expected format (YAML string):
+  # packages:
+  #   framework:
+  #     paths:
+  #       - 'packages/framework/**'
+  #   eslint-plugin:
+  #     paths:
+  #       - 'packages/eslint-plugin/**'
+  # common_paths: # Optional: paths that trigger ALL packages if changed
+  #   - '.github/workflows/continuous-delivery.yml'
+  #   - '.github/workflows/reusable-continuous-delivery.yml'
+  packages_config:
+    description: 'YAML string defining packages and their trigger paths.'
+    required: true
+
+outputs:
+  packages_json:
+    description: 'JSON string array of package names to be published, e.g., ["framework", "eslint-plugin"]. Empty array [] if none.'
+    value: ${{ steps.set-matrix.outputs.packages_json }}
+
+runs:
+  using: "composite"
+  steps:
+    # 0. Setup - Install dependencies (yq)
+    - name: Install yq
+      shell: bash
+      run: |
+        echo "::group::Install yq"
+        if ! command -v yq &> /dev/null
+        then
+            echo "yq not found. Installing..."
+            sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq && sudo chmod +x /usr/bin/yq
+            echo "yq installed successfully to $(command -v yq)"
+        else
+            echo "yq already installed at $(command -v yq)"
+        fi
+        echo "::endgroup::"
+
+    # 1. Handle workflow_dispatch trigger
+    - name: Check Dispatch Input
+      id: check-dispatch
+      if: inputs.event_name == 'workflow_dispatch'
+      shell: bash
+      run: |
+        pkg_input="${{ inputs.dispatch_package_input }}"
+        packages_config_yaml='${{ inputs.packages_config }}'
+        # Extract all package names from the config
+        all_packages=$(echo "$packages_config_yaml" | yq '[.packages | keys] | @json')
+        
+        if [[ -z "$pkg_input" ]]; then
+          # Dispatch trigger with no specific package -> run all defined packages
+          echo "packages_json=${all_packages}" >> $GITHUB_OUTPUT
+        else
+          # Dispatch trigger with specific package -> run only that one
+          # Validate if the input package exists in config
+          exists=$(echo "$packages_config_yaml" | yq ".packages.${pkg_input}")
+          if [[ "$exists" != "null" ]]; then
+             echo "packages_json=[\"$pkg_input\"]" >> $GITHUB_OUTPUT
+          else
+             echo "Warning: Dispatched package '$pkg_input' not found in configuration. Outputting empty list."
+             echo "packages_json=[]" >> $GITHUB_OUTPUT
+          fi
+        fi
+        # Install yq for YAML parsing (needs to be done only once if runner reused)
+        # echo "::add-matcher::${{ runner.tool_cache }}/yq.json" 
+        # sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq && sudo chmod +x /usr/bin/yq 
+
+    # 2. Handle push trigger
+    - name: Checkout Code (Push Only)
+      # Only checkout if push event, as paths-filter needs the code
+      if: inputs.event_name == 'push'
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0 # Needed for paths-filter comparison
+
+    - name: Generate Paths Filter Config (Push Only)
+      id: generate-filter
+      if: inputs.event_name == 'push'
+      shell: bash
+      run: |
+        packages_config_yaml='${{ inputs.packages_config }}'
+        common_paths_yaml=$(echo "$packages_config_yaml" | yq '.common_paths | map_values(.') # Convert common_paths list to YAML list string
+        # If common_paths is null or empty, set to empty string for concatenation
+        if [[ "$common_paths_yaml" == "null" || "$common_paths_yaml" == "[]" ]]; then
+           common_paths_yaml=""
+        fi
+        
+        filter_yaml=""
+        # Extract package names
+        package_names=$(echo "$packages_config_yaml" | yq '[.packages | keys] | .[]')
+        
+        for pkg in $package_names; do
+          # Get specific paths for the package
+          pkg_paths_yaml=$(echo "$packages_config_yaml" | yq ".packages.${pkg}.paths | map_values(.')")
+          # Start building the filter entry for this package
+          filter_yaml+="${pkg}:\\\\n"
+          # Indent and add package-specific paths
+          indented_pkg_paths=$(echo "$pkg_paths_yaml" | sed 's/^/  /')
+          filter_yaml+="${indented_pkg_paths}\\\\n"
+          # Indent and add common paths (if any)
+          if [[ -n "$common_paths_yaml" ]]; then
+             indented_common_paths=$(echo "$common_paths_yaml" | sed 's/^/  /')
+             filter_yaml+="${indented_common_paths}\\\\n"
+          fi
+        done
+        
+        # Escape newlines for multiline output
+        filter_yaml=$(echo -e "$filter_yaml")
+        echo "filters<<EOF" >> $GITHUB_OUTPUT
+        echo "$filter_yaml" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        # Install yq for YAML parsing (needs to be done only once if runner reused)
+        # echo "::add-matcher::${{ runner.tool_cache }}/yq.json" 
+        # sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq && sudo chmod +x /usr/bin/yq 
+
+    - name: Filter Paths (Push Only)
+      id: changes
+      if: inputs.event_name == 'push'
+      uses: dorny/paths-filter@v3
+      with:
+        filters: ${{ steps.generate-filter.outputs.filters }}
+
+    - name: Set Matrix based on Changes (Push Only)
+      id: set-matrix-push
+      if: inputs.event_name == 'push'
+      shell: bash
+      run: |
+        packages_config_yaml='${{ inputs.packages_config }}'
+        declare -a packages
+        # Extract package names
+        package_names=$(echo "$packages_config_yaml" | yq '[.packages | keys] | .[]')
+        
+        for pkg in $package_names; do
+          # Check the output of the paths-filter step for this package
+          # Simplified check using direct context access
+          if [[ "${{ steps.changes.outputs.${pkg} }}" == "true" ]]; then
+            packages+=("\"$pkg\"") # Add package name with quotes
+          fi
+        done
+        
+        # Join array elements with comma, wrap in brackets for JSON
+        # Works even if array is empty (produces '[]')
+        packages_json=$(printf ',%s' "${packages[@]}")
+        packages_json="[${packages_json:1}]"
+        
+        echo "packages_json=${packages_json}" >> $GITHUB_OUTPUT
+        # Install yq for YAML parsing (needs to be done only once if runner reused)
+        # echo "::add-matcher::${{ runner.tool_cache }}/yq.json" 
+        # sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq && sudo chmod +x /usr/bin/yq 
+
+    # 3. Finalize Matrix Output
+    - name: Finalize Matrix Output
+      id: set-matrix # This step sets the final action output
+      shell: bash
+      run: |
+        packages_json="[]" # Default empty array
+        if [[ "${{ inputs.event_name }}" == "workflow_dispatch" ]]; then
+          packages_json='${{ steps.check-dispatch.outputs.packages_json }}'
+        elif [[ "${{ inputs.event_name }}" == "push" ]]; then
+          packages_json='${{ steps.set-matrix-push.outputs.packages_json }}'
+        fi
+        # Ensure output is valid JSON array even if intermediate steps failed/produced empty output
+        if [[ -z $packages_json ]]; then
+          packages_json="[]"
+        fi
+        echo "packages_json=${packages_json}" >> $GITHUB_OUTPUT
