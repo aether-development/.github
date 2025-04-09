@@ -91,6 +91,7 @@ jobs:
           git remote set-url origin "https://${GITHUB_TOKEN}:x-oauth-basic@github.com/${GITHUB_REPOSITORY}.git"
           git config --local user.email "${GITHUB_EMAIL}"
           git config --local user.name "${GITHUB_USER}"
+          git config set advice.addIgnoredFile false
         env:
           GITHUB_USER: github-actions[bot]
           GITHUB_EMAIL: aether-development+github-actions[bot]@users.noreply.github.com
