@@ -122,6 +122,7 @@ jobs:
 
       - name: Build
         if: ${{ inputs.build }}
+        working-directory: ${{ inputs.working-directory }}
         run: bun run build
 
       - name: Bump Version
