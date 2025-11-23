@@ -89,7 +89,7 @@ runs:
     - name: Checkout Code (Push Only)
       # Only checkout if push event, as paths-filter needs the code
       if: inputs.event_name == 'push'
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         fetch-depth: 0 # Needed for paths-filter comparison
 
