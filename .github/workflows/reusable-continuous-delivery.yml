@@ -108,7 +108,7 @@ jobs:
 
       - name: Cache Bun Dependencies
         id: bun-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.bun/install/cache
           # Use OS, Bun version, and lockfile hash as the cache key.
